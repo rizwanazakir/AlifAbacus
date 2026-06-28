@@ -10,6 +10,8 @@
 <!-- v5.0 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,sans-serif;background:#f0f4ff;min-height:100vh;color:#1a1a2e}
@@ -215,6 +217,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:#f0f4ff;min-height:100v
 .confirm-btns{display:flex;gap:10px;justify-content:center}
 .confirm-cancel{padding:10px 24px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
 .confirm-delete{padding:10px 24px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
+.btn-download{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:#4338ca;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-download:hover{background:#3730a3}
+.btn-download-outline{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:#fff;color:#4338ca;border:1.5px solid #4338ca;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-download-outline:hover{background:#f5f3ff}
 .toast{position:fixed;top:20px;right:20px;background:#1a1a2e;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;z-index:999;opacity:0;transform:translateY(-10px);transition:all .3s;pointer-events:none;max-width:300px}
 .toast.show{opacity:1;transform:translateY(0)}
 
@@ -451,7 +457,10 @@ function buildStudentWsList(){
 
 function buildStudentScores(){
   if(!S.submissions.length)return`<div class="empty-state"><span>🏆</span>No submissions yet. Complete a worksheet!</div>`;
-  return`<div class="section-title">Your scores</div>
+  return`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="section-title" style="margin-bottom:0">Your scores</div>
+    <button class="btn-download-outline" id="student-pdf-btn">⬇ Download PDF</button>
+  </div>
   ${S.submissions.map(s=>{
     const ws=S.worksheets.find(w=>w.id===s.worksheet_id);
     return`<div class="leaderboard" style="margin-bottom:12px;padding:16px 20px">
@@ -687,13 +696,19 @@ function buildResult(){
     </div>`;
   }).join('')}
   </div>
-  ${buildRanking(ws.id)}`;
+  ${buildRanking(ws.id)}
+  <div style="text-align:center;margin-top:20px">
+    <button class="btn-download" id="result-pdf-btn">⬇ Download Result as PDF</button>
+  </div>`;
 }
 
 function buildTeacherResults(){
   const entries=Object.entries(S.wsResults);
   if(!entries.length)return`<div class="empty-state"><span>📊</span>No submissions yet.</div>`;
-  return entries.map(([wsId,subs])=>{
+  const hasResults=entries.some(([,subs])=>subs.length>0);
+  return `<div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+    ${hasResults?`<button class="btn-download" id="teacher-pdf-btn">⬇ Download All Results PDF</button>`:''}
+  </div>`+entries.map(([wsId,subs])=>{
     const ws=S.worksheets.find(w=>w.id===wsId);
     if(!subs.length)return'';
     return`<div class="teacher-panel">
@@ -752,6 +767,10 @@ function bindApp(){
   });
   on('answer-input','keydown',e=>{if(e.key==='Enter')$('next-btn')?.click()});
   on('save-btn','click',saveDraft);
+  // PDF downloads
+  on('student-pdf-btn','click',()=>downloadStudentScoresPdf(S.submissions,S.worksheets,S.wsResults,S.profile));
+  on('result-pdf-btn','click',()=>downloadStudentResultPdf(S.currentWs?.title,S.currentWs?.questions||[],S.answers,S.profile,S.wsResults[S.currentWs?.id]||[]));
+  on('teacher-pdf-btn','click',()=>downloadTeacherResultsPdf(S.worksheets,S.wsResults));
   on('add-q-btn','click',()=>set({newWs:{...S.newWs,questions:[...S.newWs.questions,{text:'',answer:''}]}}));
   on('submit-ws-btn','click',createWorksheet);
   on('clear-preview','click',()=>set({xlsxPreview:null}));
@@ -1060,6 +1079,257 @@ function downloadTemplate(){
   const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='AbacusHomeWork_template.xlsx';a.click();
+}
+
+// ── PDF Generation ───────────────────────────────────────────────────────────
+function getPdfHeader(doc){
+  // Header bar
+  doc.setFillColor(67,56,202);
+  doc.rect(0,0,210,18,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica','bold');
+  doc.text('Abacus-HomeWork',14,12);
+  doc.setFontSize(8);
+  doc.setFont('helvetica','normal');
+  doc.text('Alif International School · Riyadh, KSA',196,12,{align:'right'});
+  doc.setTextColor(0,0,0);
+}
+
+function downloadStudentResultPdf(wsTitle, qs, answers, profile, wsResults){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const p=profile||{};
+  const correct=answers.filter((a,i)=>a!==undefined&&String(a).trim()===String(qs[i].correct_answer).trim()).length;
+  const score=Math.round((correct/qs.length)*100);
+  const date=new Date().toLocaleDateString();
+
+  getPdfHeader(doc);
+
+  // Title
+  doc.setFontSize(16);doc.setFont('helvetica','bold');
+  doc.setTextColor(26,26,46);
+  doc.text(wsTitle||'Worksheet Result',14,30);
+
+  // Student info box
+  doc.setFillColor(248,247,255);
+  doc.roundedRect(14,34,182,28,3,3,'F');
+  doc.setFontSize(10);doc.setFont('helvetica','bold');
+  doc.text('Student:',18,43); doc.setFont('helvetica','normal'); doc.text(p.name||'—',50,43);
+  doc.setFont('helvetica','bold');
+  doc.text('Grade:',18,51); doc.setFont('helvetica','normal'); doc.text(p.grade||'—',50,51);
+  doc.setFont('helvetica','bold');
+  doc.text('Class:',100,51); doc.setFont('helvetica','normal'); doc.text(p.class||'—',118,51);
+  doc.setFont('helvetica','bold');
+  doc.text('Date:',100,43); doc.setFont('helvetica','normal'); doc.text(date,118,43);
+
+  // Score box
+  const scoreColor=score>=80?[16,185,129]:score>=50?[245,158,11]:[239,68,68];
+  doc.setFillColor(...scoreColor);
+  doc.roundedRect(14,66,182,20,3,3,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text(`Score: ${score}%  (${correct} / ${qs.length} correct)`,105,79,{align:'center'});
+  doc.setTextColor(0,0,0);
+
+  // Question review table
+  doc.setFontSize(11);doc.setFont('helvetica','bold');
+  doc.text('Question Review',14,97);
+
+  const rows=qs.map((q,i)=>{
+    const given=answers[i];
+    const isOk=given!==undefined&&String(given).trim()===String(q.correct_answer).trim();
+    return[String(i+1), q.question_text, String(given!==undefined&&given!==''?given:'—'), String(q.correct_answer), isOk?'✓':'✗'];
+  });
+
+  doc.autoTable({
+    startY:100,
+    head:[['#','Question','Your Answer','Correct','Result']],
+    body:rows,
+    theme:'striped',
+    headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
+    bodyStyles:{fontSize:9},
+    columnStyles:{0:{cellWidth:12},4:{cellWidth:16,halign:'center'}},
+    didParseCell:(data)=>{
+      if(data.column.index===4&&data.section==='body'){
+        data.cell.styles.textColor=data.cell.text[0]==='✓'?[16,185,129]:[239,68,68];
+        data.cell.styles.fontStyle='bold';
+      }
+    },
+    margin:{left:14,right:14}
+  });
+
+  // Ranking
+  if(wsResults&&wsResults.length){
+    const sorted=[...wsResults].sort((a,b)=>b.score-a.score);
+    const finalY=doc.lastAutoTable.finalY+8;
+    doc.setFontSize(11);doc.setFont('helvetica','bold');
+    doc.text('Class Ranking',14,finalY);
+    const rankRows=sorted.map((s,i)=>[
+      i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`,
+      s.student_name||(s.student_id===p.id?p.name:'Student'),
+      s.student_grade||'—',
+      s.student_class||'—',
+      `${Math.round(s.score)}%`
+    ]);
+    doc.autoTable({
+      startY:finalY+4,
+      head:[['Rank','Student','Grade','Class','Score']],
+      body:rankRows,
+      theme:'striped',
+      headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
+      bodyStyles:{fontSize:9},
+      margin:{left:14,right:14}
+    });
+  }
+
+  doc.save(`${(wsTitle||'Result').replace(/\s+/g,'_')}_${p.name||'Student'}_${date.replace(/\//g,'-')}.pdf`);
+}
+
+function downloadStudentScoresPdf(submissions, worksheets, wsResults, profile){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+  const p=profile||{};
+  const date=new Date().toLocaleDateString();
+
+  getPdfHeader(doc);
+
+  doc.setFontSize(16);doc.setFont('helvetica','bold');
+  doc.setTextColor(26,26,46);
+  doc.text('My Scores Report',14,30);
+
+  // Student info
+  doc.setFillColor(248,247,255);
+  doc.roundedRect(14,34,182,22,3,3,'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica','bold'); doc.text('Student:',18,43); doc.setFont('helvetica','normal'); doc.text(p.name||'—',50,43);
+  doc.setFont('helvetica','bold'); doc.text('Grade:',18,51); doc.setFont('helvetica','normal'); doc.text(p.grade||'—',50,51);
+  doc.setFont('helvetica','bold'); doc.text('Class:',100,51); doc.setFont('helvetica','normal'); doc.text(p.class||'—',118,51);
+  doc.setFont('helvetica','bold'); doc.text('Date:',140,43); doc.setFont('helvetica','normal'); doc.text(date,158,43);
+  doc.setTextColor(0,0,0);
+
+  // Summary stats
+  const avg=submissions.length?Math.round(submissions.reduce((a,b)=>a+b.score,0)/submissions.length):0;
+  doc.setFillColor(67,56,202);
+  doc.roundedRect(14,60,56,20,3,3,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(9);doc.setFont('helvetica','bold');
+  doc.text('Worksheets',42,69,{align:'center'});
+  doc.setFontSize(14);doc.text(String(submissions.length),42,77,{align:'center'});
+  doc.setFillColor(16,185,129);
+  doc.roundedRect(74,60,56,20,3,3,'F');
+  doc.setFontSize(9);doc.text('Avg Score',102,69,{align:'center'});
+  doc.setFontSize(14);doc.text(`${avg}%`,102,77,{align:'center'});
+  const best=submissions.length?Math.max(...submissions.map(s=>s.score)):0;
+  doc.setFillColor(245,158,11);
+  doc.roundedRect(134,60,62,20,3,3,'F');
+  doc.setFontSize(9);doc.text('Best Score',165,69,{align:'center'});
+  doc.setFontSize(14);doc.text(`${Math.round(best)}%`,165,77,{align:'center'});
+  doc.setTextColor(0,0,0);
+
+  // Results table
+  doc.setFontSize(11);doc.setFont('helvetica','bold');
+  doc.text('All Results',14,92);
+
+  const rows=submissions.map((s,i)=>{
+    const ws=worksheets.find(w=>w.id===s.worksheet_id);
+    const cls=s.score>=80?[16,185,129]:s.score>=50?[245,158,11]:[239,68,68];
+    const allSubs=wsResults[s.worksheet_id]||[];
+    const sorted=[...allSubs].sort((a,b)=>b.score-a.score);
+    const myRank=sorted.findIndex(x=>x.student_id===p.id)+1;
+    return[
+      String(i+1),
+      ws?.title||'—',
+      new Date(s.submitted_at).toLocaleDateString(),
+      `${s.correct_count}/${s.total_questions}`,
+      `${Math.round(s.score)}%`,
+      myRank>0?`#${myRank}`:'—'
+    ];
+  });
+
+  doc.autoTable({
+    startY:96,
+    head:[['#','Worksheet','Date','Correct','Score','Rank']],
+    body:rows,
+    theme:'striped',
+    headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
+    bodyStyles:{fontSize:9},
+    didParseCell:(data)=>{
+      if(data.column.index===4&&data.section==='body'){
+        const score=parseFloat(data.cell.text[0]);
+        data.cell.styles.textColor=score>=80?[16,185,129]:score>=50?[245,158,11]:[239,68,68];
+        data.cell.styles.fontStyle='bold';
+      }
+    },
+    margin:{left:14,right:14}
+  });
+
+  doc.save(`My_Scores_${p.name||'Student'}_${date.replace(/\//g,'-')}.pdf`);
+}
+
+function downloadTeacherResultsPdf(worksheets, wsResults){
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF('l','mm','a4'); // landscape for more columns
+  const date=new Date().toLocaleDateString();
+
+  // Header
+  doc.setFillColor(67,56,202);
+  doc.rect(0,0,297,18,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');
+  doc.text('Abacus-HomeWork · Student Results Report',14,12);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  doc.text(`Generated: ${date}`,283,12,{align:'right'});
+  doc.setTextColor(0,0,0);
+
+  let startY=26;
+
+  worksheets.forEach(ws=>{
+    const subs=wsResults[ws.id]||[];
+    if(!subs.length) return;
+
+    doc.setFontSize(12);doc.setFont('helvetica','bold');
+    doc.setTextColor(67,56,202);
+    doc.text(ws.title,14,startY);
+
+    const avg=Math.round(subs.reduce((a,b)=>a+b.score,0)/subs.length);
+    doc.setFontSize(9);doc.setFont('helvetica','normal');
+    doc.setTextColor(107,114,128);
+    doc.text(`${subs.length} submissions · Avg: ${avg}%`,14,startY+6);
+    doc.setTextColor(0,0,0);
+
+    const sorted=[...subs].sort((a,b)=>b.score-a.score);
+    const rows=sorted.map((s,i)=>[
+      i===0?'1st':i===1?'2nd':i===2?'3rd':`#${i+1}`,
+      s.student_name||'Student',
+      s.student_grade||'—',
+      s.student_class||'—',
+      `${s.correct_count}/${s.total_questions}`,
+      `${Math.round(s.score)}%`,
+      new Date(s.submitted_at).toLocaleDateString()
+    ]);
+
+    doc.autoTable({
+      startY:startY+10,
+      head:[['Rank','Student Name','Grade','Class','Correct','Score','Date']],
+      body:rows,
+      theme:'striped',
+      headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
+      bodyStyles:{fontSize:9},
+      didParseCell:(data)=>{
+        if(data.column.index===5&&data.section==='body'){
+          const score=parseFloat(data.cell.text[0]);
+          data.cell.styles.textColor=score>=80?[16,185,129]:score>=50?[245,158,11]:[239,68,68];
+          data.cell.styles.fontStyle='bold';
+        }
+      },
+      margin:{left:14,right:14}
+    });
+
+    startY=doc.lastAutoTable.finalY+14;
+    if(startY>180){doc.addPage();startY=26;}
+  });
+
+  doc.save(`Student_Results_${date.replace(/\//g,'-')}.pdf`);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
