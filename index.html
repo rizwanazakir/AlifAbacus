@@ -706,30 +706,78 @@ function buildTeacherResults(){
   const entries=Object.entries(S.wsResults);
   if(!entries.length)return`<div class="empty-state"><span>📊</span>No submissions yet.</div>`;
   const hasResults=entries.some(([,subs])=>subs.length>0);
-  return `<div style="display:flex;justify-content:flex-end;margin-bottom:14px">
-    ${hasResults?`<button class="btn-download" id="teacher-pdf-btn">⬇ Download All Results PDF</button>`:''}
-  </div>`+entries.map(([wsId,subs])=>{
+  if(!hasResults)return`<div class="empty-state"><span>📊</span>No submissions yet.</div>`;
+
+  let out=`<div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+    <button class="btn-download" id="teacher-pdf-btn">⬇ Download PDF</button>
+  </div>`;
+
+  entries.forEach(([wsId,subs])=>{
     const ws=S.worksheets.find(w=>w.id===wsId);
-    if(!subs.length)return'';
-    return`<div class="teacher-panel">
-      <div class="section-title" style="margin-bottom:14px">${ws?.title||'Worksheet'}</div>
-      <table class="results-table">
-        <thead><tr><th>Rank</th><th>Student</th><th>Grade</th><th>Class</th><th>Score</th><th>Correct</th><th>Date</th></tr></thead>
-        <tbody>${[...subs].sort((a,b)=>b.score-a.score).map((s,i)=>{
-          const cls=s.score>=80?'high':s.score>=50?'mid':'low';
-          return`<tr>
-            <td>${i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</td>
-            <td>${s.student_name||'Student'}</td>
-            <td>${s.student_grade||'—'}</td>
-            <td>${s.student_class||'—'}</td>
-            <td><span class="score-pill ${cls}">${Math.round(s.score)}%</span></td>
-            <td>${s.correct_count}/${s.total_questions}</td>
-            <td>${new Date(s.submitted_at).toLocaleDateString()}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table>
-    </div>`;
-  }).join('');
+    if(!subs.length)return;
+
+    out+=`<div class="teacher-panel" style="margin-bottom:20px">
+      <div class="section-title" style="margin-bottom:4px">📋 ${ws?.title||'Worksheet'}</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:16px">${subs.length} submission${subs.length!==1?'s':''} · Avg: ${Math.round(subs.reduce((a,b)=>a+b.score,0)/subs.length)}%</div>`;
+
+    // Group by grade then class
+    const gradeMap={};
+    subs.forEach(s=>{
+      const grade=s.student_grade||'No Grade';
+      const cls=s.student_class||'No Class';
+      if(!gradeMap[grade])gradeMap[grade]={};
+      if(!gradeMap[grade][cls])gradeMap[grade][cls]=[];
+      gradeMap[grade][cls].push(s);
+    });
+
+    // Sort grades
+    const sortedGrades=Object.keys(gradeMap).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+
+    sortedGrades.forEach(grade=>{
+      const classMap=gradeMap[grade];
+      const sortedClasses=Object.keys(classMap).sort();
+
+      sortedClasses.forEach(cls=>{
+        const students=[...classMap[cls]].sort((a,b)=>b.score-a.score);
+        const avgScore=Math.round(students.reduce((a,b)=>a+b.score,0)/students.length);
+        const scoreCol=avgScore>=80?'#d1fae5':avgScore>=50?'#fef3c7':'#fee2e2';
+        const scoreText=avgScore>=80?'#065f46':avgScore>=50?'#92400e':'#991b1b';
+
+        out+=`<div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div style="background:#4338ca;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px">
+              ${grade}
+            </div>
+            <div style="background:#7c3aed;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px">
+              Class ${cls}
+            </div>
+            <div style="background:${scoreCol};color:${scoreText};font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px">
+              Avg ${avgScore}%
+            </div>
+            <div style="font-size:12px;color:#6b7280">${students.length} student${students.length!==1?'s':''}</div>
+          </div>
+          <table class="results-table">
+            <thead><tr><th>Rank</th><th>Student</th><th>Score</th><th>Correct</th><th>Date</th></tr></thead>
+            <tbody>${students.map((s,i)=>{
+              const pill=s.score>=80?'high':s.score>=50?'mid':'low';
+              const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`;
+              return`<tr>
+                <td>${medal}</td>
+                <td style="font-weight:600">${s.student_name||'Student'}</td>
+                <td><span class="score-pill ${pill}">${Math.round(s.score)}%</span></td>
+                <td>${s.correct_count}/${s.total_questions}</td>
+                <td>${new Date(s.submitted_at).toLocaleDateString()}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>`;
+      });
+    });
+
+    out+=`</div>`;
+  });
+
+  return out;
 }
 
 // ── Delete confirm ────────────────────────────────────────────────────────────
@@ -1268,7 +1316,7 @@ function downloadStudentScoresPdf(submissions, worksheets, wsResults, profile){
 
 function downloadTeacherResultsPdf(worksheets, wsResults){
   const{jsPDF}=window.jspdf;
-  const doc=new jsPDF('l','mm','a4'); // landscape for more columns
+  const doc=new jsPDF('l','mm','a4');
   const date=new Date().toLocaleDateString();
 
   // Header
@@ -1276,7 +1324,7 @@ function downloadTeacherResultsPdf(worksheets, wsResults){
   doc.rect(0,0,297,18,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(11);doc.setFont('helvetica','bold');
-  doc.text('Abacus-HomeWork · Student Results Report',14,12);
+  doc.text('Abacus-HomeWork · Student Results by Grade & Class',14,12);
   doc.setFontSize(8);doc.setFont('helvetica','normal');
   doc.text(`Generated: ${date}`,283,12,{align:'right'});
   doc.setTextColor(0,0,0);
@@ -1285,51 +1333,85 @@ function downloadTeacherResultsPdf(worksheets, wsResults){
 
   worksheets.forEach(ws=>{
     const subs=wsResults[ws.id]||[];
-    if(!subs.length) return;
+    if(!subs.length)return;
 
-    doc.setFontSize(12);doc.setFont('helvetica','bold');
+    // Worksheet title
+    if(startY>170){doc.addPage();startY=26;}
+    doc.setFontSize(13);doc.setFont('helvetica','bold');
     doc.setTextColor(67,56,202);
-    doc.text(ws.title,14,startY);
-
-    const avg=Math.round(subs.reduce((a,b)=>a+b.score,0)/subs.length);
+    doc.text(`📋 ${ws.title}`,14,startY);
+    const wsAvg=Math.round(subs.reduce((a,b)=>a+b.score,0)/subs.length);
     doc.setFontSize(9);doc.setFont('helvetica','normal');
     doc.setTextColor(107,114,128);
-    doc.text(`${subs.length} submissions · Avg: ${avg}%`,14,startY+6);
+    doc.text(`${subs.length} submissions · Overall Avg: ${wsAvg}%`,14,startY+6);
     doc.setTextColor(0,0,0);
+    startY+=14;
 
-    const sorted=[...subs].sort((a,b)=>b.score-a.score);
-    const rows=sorted.map((s,i)=>[
-      i===0?'1st':i===1?'2nd':i===2?'3rd':`#${i+1}`,
-      s.student_name||'Student',
-      s.student_grade||'—',
-      s.student_class||'—',
-      `${s.correct_count}/${s.total_questions}`,
-      `${Math.round(s.score)}%`,
-      new Date(s.submitted_at).toLocaleDateString()
-    ]);
-
-    doc.autoTable({
-      startY:startY+10,
-      head:[['Rank','Student Name','Grade','Class','Correct','Score','Date']],
-      body:rows,
-      theme:'striped',
-      headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
-      bodyStyles:{fontSize:9},
-      didParseCell:(data)=>{
-        if(data.column.index===5&&data.section==='body'){
-          const score=parseFloat(data.cell.text[0]);
-          data.cell.styles.textColor=score>=80?[16,185,129]:score>=50?[245,158,11]:[239,68,68];
-          data.cell.styles.fontStyle='bold';
-        }
-      },
-      margin:{left:14,right:14}
+    // Group by grade → class
+    const gradeMap={};
+    subs.forEach(s=>{
+      const grade=s.student_grade||'No Grade';
+      const cls=s.student_class||'No Class';
+      if(!gradeMap[grade])gradeMap[grade]={};
+      if(!gradeMap[grade][cls])gradeMap[grade][cls]=[];
+      gradeMap[grade][cls].push(s);
     });
 
-    startY=doc.lastAutoTable.finalY+14;
-    if(startY>180){doc.addPage();startY=26;}
+    const sortedGrades=Object.keys(gradeMap).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+
+    sortedGrades.forEach(grade=>{
+      const classMap=gradeMap[grade];
+      const sortedClasses=Object.keys(classMap).sort();
+
+      sortedClasses.forEach(cls=>{
+        if(startY>170){doc.addPage();startY=26;}
+        const students=[...classMap[cls]].sort((a,b)=>b.score-a.score);
+        const avg=Math.round(students.reduce((a,b)=>a+b.score,0)/students.length);
+
+        // Grade + Class sub-header
+        doc.setFillColor(237,233,254);
+        doc.roundedRect(14,startY-4,269,10,2,2,'F');
+        doc.setFontSize(10);doc.setFont('helvetica','bold');
+        doc.setTextColor(67,56,202);
+        doc.text(`${grade}  ·  Class ${cls}`,18,startY+3);
+        doc.setTextColor(107,114,128);
+        doc.setFontSize(9);doc.setFont('helvetica','normal');
+        doc.text(`${students.length} students · Avg: ${avg}%`,283,startY+3,{align:'right'});
+        doc.setTextColor(0,0,0);
+        startY+=10;
+
+        const rows=students.map((s,i)=>[
+          i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`,
+          s.student_name||'Student',
+          `${s.correct_count}/${s.total_questions}`,
+          `${Math.round(s.score)}%`,
+          new Date(s.submitted_at).toLocaleDateString()
+        ]);
+
+        doc.autoTable({
+          startY,
+          head:[['Rank','Student Name','Correct','Score','Date']],
+          body:rows,
+          theme:'striped',
+          headStyles:{fillColor:[124,58,237],textColor:255,fontStyle:'bold',fontSize:9},
+          bodyStyles:{fontSize:9},
+          didParseCell:(data)=>{
+            if(data.column.index===3&&data.section==='body'){
+              const score=parseFloat(data.cell.text[0]);
+              data.cell.styles.textColor=score>=80?[16,185,129]:score>=50?[245,158,11]:[239,68,68];
+              data.cell.styles.fontStyle='bold';
+            }
+          },
+          margin:{left:14,right:14}
+        });
+
+        startY=doc.lastAutoTable.finalY+10;
+      });
+    });
+    startY+=6;
   });
 
-  doc.save(`Student_Results_${date.replace(/\//g,'-')}.pdf`);
+  doc.save(`Results_By_Grade_Class_${date.replace(/\//g,'-')}.pdf`);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
