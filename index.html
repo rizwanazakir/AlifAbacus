@@ -302,26 +302,26 @@ function buildAuth(){
     <div class="auth-success" id="auth-success"></div>
     ${!isLogin?`
     <div class="auth-form-group">
-      <label class="auth-label">Full name</label>
-      <input class="auth-input" id="auth-name" type="text" placeholder="Alex Johnson"/>
+      <label class="auth-label">Full name *</label>
+      <input class="auth-input" id="auth-name" type="text" placeholder="Alex Johnson" required/>
     </div>
     <div class="auth-row">
       <div>
-        <label class="auth-label">Grade</label>
-        <input class="auth-input" id="auth-grade" type="text" placeholder="e.g. Grade 3"/>
+        <label class="auth-label">Grade *</label>
+        <input class="auth-input" id="auth-grade" type="text" placeholder="e.g. Grade 3" required/>
       </div>
       <div>
-        <label class="auth-label">Class</label>
-        <input class="auth-input" id="auth-class" type="text" placeholder="e.g. A or Blue"/>
+        <label class="auth-label">Class *</label>
+        <input class="auth-input" id="auth-class" type="text" placeholder="e.g. A or Blue" required/>
       </div>
     </div>`:''}
     <div class="auth-form-group">
-      <label class="auth-label">Email address</label>
-      <input class="auth-input" id="auth-email" type="email" placeholder="you@example.com"/>
+      <label class="auth-label">Email address ${!isLogin?'*':''}</label>
+      <input class="auth-input" id="auth-email" type="email" placeholder="you@example.com" ${!isLogin?'required':''}/>
     </div>
     <div class="auth-form-group">
-      <label class="auth-label">Password</label>
-      <input class="auth-input" id="auth-password" type="password" placeholder="${isLogin?'Your password':'Min. 6 characters'}"/>
+      <label class="auth-label">Password ${!isLogin?'*':''}</label>
+      <input class="auth-input" id="auth-password" type="password" placeholder="${isLogin?'Your password':'Min. 6 characters'}" ${!isLogin?'required':''}/>
       ${isLogin?`<button class="auth-forgot" id="forgot-btn">Forgot password?</button>`:''}
     </div>
     <button class="auth-btn" id="auth-submit">${isLogin?'Sign in':'Create account'}</button>
@@ -357,8 +357,11 @@ async function handleEmailAuth(){
     const name=$('auth-name')?.value.trim();
     const grade=$('auth-grade')?.value.trim()||'';
     const cls=$('auth-class')?.value.trim()||'';
-    if(!name){showAuthError('Please enter your name.');btn.disabled=false;btn.textContent='Create account';return;}
-    if(password.length<6){showAuthError('Password must be at least 6 characters.');btn.disabled=false;btn.textContent='Create account';return;}
+    if(!name){showAuthError('Please enter your full name.');btn.disabled=false;btn.textContent='Create account';return;}
+    if(!grade){showAuthError('Please enter your grade.');btn.disabled=false;btn.textContent='Create account';return;}
+    if(!cls){showAuthError('Please enter your class.');btn.disabled=false;btn.textContent='Create account';return;}
+    if(!email){showAuthError('Please enter your email address.');btn.disabled=false;btn.textContent='Create account';return;}
+    if(!password||password.length<6){showAuthError('Password must be at least 6 characters.');btn.disabled=false;btn.textContent='Create account';return;}
     const{data,error}=await sb.auth.signUp({email,password,options:{data:{name,role:'student',grade,class:cls}}});
     if(error){showAuthError(error.message);btn.disabled=false;btn.textContent='Create account';return;}
     await createProfile(data.user,name,email,'student',grade,cls);
