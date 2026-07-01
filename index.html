@@ -29,7 +29,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#f8f6ff;min-height:100v
 .auth-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .auth-label{font-size:13px;font-weight:600;color:#4a3f6b;margin-bottom:6px;display:block}
 .auth-input{width:100%;padding:11px 14px;border:1.5px solid #e9d5ff;border-radius:10px;font-size:14px;color:#2d2047;outline:none;transition:border .2s;background:#fdfbff}
-.auth-input:focus{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.1)}
+.auth-input:focus{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.1)}select.auth-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238b5cf6' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer}
 .role-select{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
 .role-option{border:2px solid #e9d5ff;border-radius:10px;padding:12px;text-align:center;cursor:pointer;transition:all .2s;background:#fdfbff}
 .role-option.selected{border-color:#a78bfa;background:#f5f0ff}
@@ -308,11 +308,28 @@ function buildAuth(){
     <div class="auth-row">
       <div>
         <label class="auth-label">Grade *</label>
-        <input class="auth-input" id="auth-grade" type="text" placeholder="e.g. Grade 3" required/>
+        <select class="auth-input" id="auth-grade" required>
+          <option value="">Select Grade</option>
+          <option value="Grade 1">Grade 1</option>
+          <option value="Grade 2">Grade 2</option>
+          <option value="Grade 3">Grade 3</option>
+          <option value="Grade 4">Grade 4</option>
+          <option value="Grade 5">Grade 5</option>
+        </select>
       </div>
       <div>
         <label class="auth-label">Class *</label>
-        <input class="auth-input" id="auth-class" type="text" placeholder="e.g. A or Blue" required/>
+        <select class="auth-input" id="auth-class" required>
+          <option value="">Select Class</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+          <option value="E">E</option>
+          <option value="F">F</option>
+          <option value="G">G</option>
+          <option value="H">H</option>
+        </select>
       </div>
     </div>`:''}
     <div class="auth-form-group">
@@ -360,8 +377,8 @@ async function handleEmailAuth(){
     if(!name){showAuthError('Please enter your full name.');btn.disabled=false;btn.textContent='Create account';return;}
     if(!gradeRaw){showAuthError('Please enter your grade.');btn.disabled=false;btn.textContent='Create account';return;}
     if(!cls){showAuthError('Please enter your class.');btn.disabled=false;btn.textContent='Create account';return;}
-    // Normalise grade to "Grade X" format so it matches worksheet grade_category
-    const grade=/^\d+$/.test(gradeRaw)?'Grade '+gradeRaw:gradeRaw;
+    // Grade is already in "Grade X" format from the dropdown
+    const grade=gradeRaw;
     if(!email){showAuthError('Please enter your email address.');btn.disabled=false;btn.textContent='Create account';return;}
     if(!password||password.length<6){showAuthError('Password must be at least 6 characters.');btn.disabled=false;btn.textContent='Create account';return;}
     const{data,error}=await sb.auth.signUp({email,password,options:{data:{name,role:'student',grade,class:cls}}});
