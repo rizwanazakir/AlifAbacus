@@ -355,11 +355,13 @@ async function handleEmailAuth(){
     await afterLogin(data.user);
   } else {
     const name=$('auth-name')?.value.trim();
-    const grade=$('auth-grade')?.value.trim()||'';
+    const gradeRaw=$('auth-grade')?.value.trim()||'';
     const cls=$('auth-class')?.value.trim()||'';
     if(!name){showAuthError('Please enter your full name.');btn.disabled=false;btn.textContent='Create account';return;}
-    if(!grade){showAuthError('Please enter your grade.');btn.disabled=false;btn.textContent='Create account';return;}
+    if(!gradeRaw){showAuthError('Please enter your grade.');btn.disabled=false;btn.textContent='Create account';return;}
     if(!cls){showAuthError('Please enter your class.');btn.disabled=false;btn.textContent='Create account';return;}
+    // Normalise grade to "Grade X" format so it matches worksheet grade_category
+    const grade=/^\d+$/.test(gradeRaw)?'Grade '+gradeRaw:gradeRaw;
     if(!email){showAuthError('Please enter your email address.');btn.disabled=false;btn.textContent='Create account';return;}
     if(!password||password.length<6){showAuthError('Password must be at least 6 characters.');btn.disabled=false;btn.textContent='Create account';return;}
     const{data,error}=await sb.auth.signUp({email,password,options:{data:{name,role:'student',grade,class:cls}}});
