@@ -731,9 +731,7 @@ function buildQuiz(){
           return`<button class="btn-primary" id="next-btn">Submit ✓</button>`;
         } else {
           const done=qs.filter((_,i)=>i===qi?false:S.answers[i]!==undefined&&S.answers[i]!=='').length;
-          return`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled title="Answer all questions first">
-            Answer all sums first (${done+0}/${qs.length})
-          </button>`;
+          return`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled title="Answer all questions first"><span style="color:#ef4444;font-weight:800">Answer all sums first (${done+0}/${qs.length})</span></button>`;
         }
       } else {
         return`<button class="btn-primary" id="next-btn">Next →</button>`;
@@ -914,7 +912,7 @@ function bindApp(){
         const saveBtn=`<button class="btn-save" id="save-btn">💾 Save & Exit</button>`;
         const submitBtn=allDone
           ?`<button class="btn-primary" id="next-btn">Submit ✓</button>`
-          :`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled>Answer all sums first (${done}/${qs.length})</button>`;
+          :`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled><span style="color:#ef4444;font-weight:800">Answer all sums first (${done}/${qs.length})</span></button>`;
         actionsEl.innerHTML=prevBtn+saveBtn+submitBtn;
         on('prev-btn','click',()=>{const c=[...S.answers];c[S.currentQ]=inp?inp.value:'';set({answers:c,currentQ:S.currentQ-1});});
         on('save-btn','click',saveDraft);
