@@ -1072,11 +1072,18 @@ async function loadDrafts(){
 
 async function submitQuiz(answers){
   const ws=S.currentWs,qs=ws.questions||[];
+  // Validate all questions are answered before allowing submission
+  const answeredCount=answers.filter(a=>a!==undefined&&String(a).trim()!=='').length;
+  if(answeredCount<qs.length){
+    showToast(`Please complete all the sums and then submit (${answeredCount}/${qs.length} done)`,true);
+    return;
+  }
   const correct=answers.filter((a,i)=>a!==undefined&&Number(String(a).trim())===Number(String(qs[i].correct_answer).trim())).length;
   const score=(correct/qs.length)*100;
   try{
     const{data:sub}=await sb.from('submissions').insert({
-      student_id:S.profile.id,worksheet_id:ws.id,score,total_questions:qs.length,correct_count:correct
+      student_id:S.profile.id,worksheet_id:ws.id,score,total_questions:qs.length,correct_count:correct,
+      answered_count:answeredCount,is_complete:true
     }).select().single();
     if(sub){
       await sb.from('submission_answers').insert(answers.map((a,i)=>({
