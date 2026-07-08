@@ -107,6 +107,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:#f8f6ff;min-height:100v
 .quiz-actions{display:flex;gap:12px;justify-content:center;margin-top:20px}
 .btn-primary{padding:12px 28px;background:#8b5cf6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-primary:hover{background:#7c3aed;transform:translateY(-1px)}
+.btn-disabled-hint{opacity:.45;cursor:not-allowed;transform:none !important;font-size:13px}
+.btn-disabled-hint:hover{background:#8b5cf6 !important;transform:none !important}
 .btn-secondary{padding:12px 28px;background:#f5f0ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-secondary:hover{background:#ede9fe}
 .btn-back{display:flex;align-items:center;gap:6px;background:#f5f0ff;border:1px solid #ddd6fe;color:#8b5cf6;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px;padding:7px 14px;border-radius:10px;transition:all .2s}
@@ -715,7 +717,28 @@ function buildQuiz(){
   <div class="quiz-actions">
     ${qi>0?`<button class="btn-secondary" id="prev-btn">← Previous</button>`:''}
     <button class="btn-save" id="save-btn">💾 Save & Exit</button>
-    <button class="btn-primary" id="next-btn">${qi===qs.length-1?'Submit ✓':'Next →'}</button>
+    ${(()=>{
+      const isLast=qi===qs.length-1;
+      const allAnswered=qs.every((_,i)=>{
+        const a=S.answers[i];
+        // Current question: check live input value too
+        if(i===qi){const inp=document.getElementById('answer-input');return inp?inp.value.trim()!=='':a!==undefined&&a!=='';}
+        return a!==undefined&&a!=='';
+      });
+      if(isLast){
+        // On last question: show Submit only if all answered, else show disabled hint
+        if(allAnswered){
+          return`<button class="btn-primary" id="next-btn">Submit ✓</button>`;
+        } else {
+          const done=qs.filter((_,i)=>i===qi?false:S.answers[i]!==undefined&&S.answers[i]!=='').length;
+          return`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled title="Answer all questions first">
+            Answer all sums first (${done+0}/${qs.length})
+          </button>`;
+        }
+      } else {
+        return`<button class="btn-primary" id="next-btn">Next →</button>`;
+      }
+    })()}
   </div>`;
 }
 
@@ -869,8 +892,35 @@ function bindApp(){
   on('next-btn','click',()=>{
     const inp=$('answer-input'),cur=[...S.answers];cur[S.currentQ]=inp?inp.value:'';
     const qs=S.currentWs.questions||[];
-    if(S.currentQ<qs.length-1)set({answers:cur,currentQ:S.currentQ+1});
-    else submitQuiz(cur);
+    if(S.currentQ<qs.length-1){set({answers:cur,currentQ:S.currentQ+1});}
+    else{
+      // Only submit if all questions have been answered
+      const allDone=qs.every((_,i)=>cur[i]!==undefined&&String(cur[i]).trim()!=='');
+      if(allDone)submitQuiz(cur);
+    }
+  });
+  // Re-render quiz actions live as student types on last question (reveals Submit when all done)
+  on('answer-input','input',()=>{
+    if(S.currentQ===((S.currentWs?.questions||[]).length-1)){
+      const inp=$('answer-input'),cur=[...S.answers];cur[S.currentQ]=inp?inp.value:'';
+      S.answers=cur;
+      // Re-render just the actions area
+      const actionsEl=document.querySelector('.quiz-actions');
+      if(actionsEl){
+        const qs=S.currentWs.questions||[];
+        const allDone=qs.every((_,i)=>cur[i]!==undefined&&String(cur[i]).trim()!=='');
+        const done=qs.filter((_,i)=>cur[i]!==undefined&&String(cur[i]).trim()!=='').length;
+        const prevBtn=S.currentQ>0?`<button class="btn-secondary" id="prev-btn">← Previous</button>`:'';
+        const saveBtn=`<button class="btn-save" id="save-btn">💾 Save & Exit</button>`;
+        const submitBtn=allDone
+          ?`<button class="btn-primary" id="next-btn">Submit ✓</button>`
+          :`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled>Answer all sums first (${done}/${qs.length})</button>`;
+        actionsEl.innerHTML=prevBtn+saveBtn+submitBtn;
+        on('prev-btn','click',()=>{const c=[...S.answers];c[S.currentQ]=inp?inp.value:'';set({answers:c,currentQ:S.currentQ-1});});
+        on('save-btn','click',saveDraft);
+        on('next-btn','click',()=>{if(allDone)submitQuiz(cur);});
+      }
+    }
   });
   on('answer-input','keydown',e=>{if(e.key==='Enter')$('next-btn')?.click()});
   on('save-btn','click',saveDraft);
