@@ -722,7 +722,7 @@ function buildQuiz(){
 // ── Result ────────────────────────────────────────────────────────────────────
 function buildResult(){
   const ws=S.currentWs,qs=ws.questions||[];
-  const correct=S.answers.filter((a,i)=>a!==undefined&&String(a).trim()===String(qs[i].correct_answer).trim()).length;
+  const correct=S.answers.filter((a,i)=>a!==undefined&&Number(String(a).trim())===Number(String(qs[i].correct_answer).trim())).length;
   const score=Math.round((correct/qs.length)*100);
   const emoji=score>=80?'🌟':score>=50?'👍':'💪';
   const p=S.profile||{};
@@ -744,7 +744,7 @@ function buildResult(){
   <div class="section-title">Question Review</div>
   <div class="answers-list">
   ${qs.map((q,i)=>{
-    const given=S.answers[i],isOk=given!==undefined&&String(given).trim()===String(q.correct_answer).trim();
+    const given=S.answers[i],isOk=given!==undefined&&Number(String(given).trim())===Number(String(q.correct_answer).trim());
     return`<div class="answer-row">
       <div class="answer-icon">${isOk?'✅':'❌'}</div>
       <div class="answer-q">${q.question_text}</div>
@@ -1022,7 +1022,7 @@ async function loadDrafts(){
 
 async function submitQuiz(answers){
   const ws=S.currentWs,qs=ws.questions||[];
-  const correct=answers.filter((a,i)=>a!==undefined&&String(a).trim()===String(qs[i].correct_answer).trim()).length;
+  const correct=answers.filter((a,i)=>a!==undefined&&Number(String(a).trim())===Number(String(qs[i].correct_answer).trim())).length;
   const score=(correct/qs.length)*100;
   try{
     const{data:sub}=await sb.from('submissions').insert({
@@ -1215,7 +1215,7 @@ function downloadStudentResultPdf(wsTitle, qs, answers, profile, wsResults){
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF();
   const p=profile||{};
-  const correct=answers.filter((a,i)=>a!==undefined&&String(a).trim()===String(qs[i].correct_answer).trim()).length;
+  const correct=answers.filter((a,i)=>a!==undefined&&Number(String(a).trim())===Number(String(qs[i].correct_answer).trim())).length;
   const score=Math.round((correct/qs.length)*100);
   const date=new Date().toLocaleDateString();
 
@@ -1253,7 +1253,7 @@ function downloadStudentResultPdf(wsTitle, qs, answers, profile, wsResults){
 
   const rows=qs.map((q,i)=>{
     const given=answers[i];
-    const isOk=given!==undefined&&String(given).trim()===String(q.correct_answer).trim();
+    const isOk=given!==undefined&&Number(String(given).trim())===Number(String(q.correct_answer).trim());
     return[String(i+1), q.question_text, String(given!==undefined&&given!==''?given:'—'), String(q.correct_answer), isOk?'✓':'✗'];
   });
 
