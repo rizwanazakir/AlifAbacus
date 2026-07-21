@@ -107,8 +107,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:#f8f6ff;min-height:100v
 .quiz-actions{display:flex;gap:12px;justify-content:center;margin-top:20px}
 .btn-primary{padding:12px 28px;background:#8b5cf6;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-primary:hover{background:#7c3aed;transform:translateY(-1px)}
-.btn-disabled-hint{opacity:.45;cursor:not-allowed;transform:none !important;font-size:13px}
-.btn-disabled-hint:hover{background:#8b5cf6 !important;transform:none !important}
+.btn-disabled-hint{opacity:1 !important;cursor:not-allowed !important;transform:none !important;
+  background:#e5e7eb !important;color:#9ca3af !important;border:1.5px solid #d1d5db !important;
+  box-shadow:none !important;font-size:13px;font-weight:700}
+.btn-disabled-hint:hover{background:#e5e7eb !important;color:#9ca3af !important;transform:none !important;box-shadow:none !important}
 .btn-secondary{padding:12px 28px;background:#f5f0ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-secondary:hover{background:#ede9fe}
 .btn-back{display:flex;align-items:center;gap:6px;background:#f5f0ff;border:1px solid #ddd6fe;color:#8b5cf6;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px;padding:7px 14px;border-radius:10px;transition:all .2s}
@@ -759,7 +761,7 @@ function buildQuiz(){
           return`<button class="btn-primary" id="next-btn">Submit ✓</button>`;
         } else {
           const done=qs.filter((_,i)=>i===qi?false:S.answers[i]!==undefined&&S.answers[i]!=='').length;
-          return`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled title="Answer all questions first"><span style="color:#ef4444;font-weight:800">Answer all sums first (${done+0}/${qs.length})</span></button>`;
+          return`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled>Answer all sums first (${done+0}/${qs.length})</button>`;
         }
       } else {
         return`<button class="btn-primary" id="next-btn">Next →</button>`;
@@ -941,7 +943,7 @@ function bindApp(){
         const saveBtn=`<button class="btn-save" id="save-btn">💾 Save & Exit</button>`;
         const submitBtn=allDone
           ?`<button class="btn-primary" id="next-btn">Submit ✓</button>`
-          :`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled><span style="color:#ef4444;font-weight:800">Answer all sums first (${done}/${qs.length})</span></button>`;
+          :`<button class="btn-primary btn-disabled-hint" id="next-btn" disabled>Answer all sums first (${done}/${qs.length})</button>`;
         actionsEl.innerHTML=prevBtn+saveBtn+submitBtn;
         on('prev-btn','click',()=>{const c=[...S.answers];c[S.currentQ]=inp?inp.value:'';set({answers:c,currentQ:S.currentQ-1});});
         on('save-btn','click',saveDraft);
