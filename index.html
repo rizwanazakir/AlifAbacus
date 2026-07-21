@@ -1755,14 +1755,17 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
 
   document.body.appendChild(modal);
 
-  // Close button — use getElementById after appending
-  const closeBtn=document.getElementById('detail-close-btn');
-  if(closeBtn) closeBtn.addEventListener('click',()=>modal.remove());
+  // Close button — query inside modal to avoid ID conflicts
+  modal.querySelector('.detail-modal-close').onclick = () => modal.remove();
 
-  // Close on backdrop click
-  modal.addEventListener('click',e=>{
-    if(e.target===modal) modal.remove();
+  // Close on backdrop click (clicking outside the white box)
+  modal.addEventListener('click', e => {
+    if(e.target === modal) modal.remove();
   });
+
+  // Close on Escape key
+  const escHandler = e => { if(e.key === 'Escape'){ modal.remove(); document.removeEventListener('keydown', escHandler); }};
+  document.addEventListener('keydown', escHandler);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
