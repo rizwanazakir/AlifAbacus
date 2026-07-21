@@ -1109,12 +1109,42 @@ async function loadDrafts(){
   }catch(e){console.warn('loadDrafts',e);}
 }
 
+function showIncompleteAlert(done, total){
+  // Remove any existing alert
+  document.getElementById('incomplete-alert')?.remove();
+  const el=document.createElement('div');
+  el.id='incomplete-alert';
+  el.style.cssText=`
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:#fff8f0;border:2.5px solid #f97316;border-radius:18px;
+    padding:32px 36px;text-align:center;z-index:999;
+    box-shadow:0 12px 48px rgba(249,115,22,.25);max-width:380px;width:90%
+  `;
+  el.innerHTML=`
+    <div style="font-size:44px;margin-bottom:14px">⚠️</div>
+    <div style="font-size:19px;font-weight:900;color:#9a3412;margin-bottom:10px;line-height:1.3">
+      Please complete all the sums and then submit
+    </div>
+    <div style="font-size:14px;font-weight:700;color:#c2410c;background:#ffedd5;border-radius:10px;padding:8px 18px;display:inline-block;margin-bottom:20px">
+      ${done} of ${total} sums answered
+    </div>
+    <br/>
+    <button onclick="document.getElementById('incomplete-alert').remove()" style="
+      background:#f97316;color:#fff;border:none;border-radius:10px;
+      padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer
+    ">OK, I'll complete them</button>
+  `;
+  document.body.appendChild(el);
+  // Auto-dismiss after 5 seconds
+  setTimeout(()=>el?.remove(), 5000);
+}
+
 async function submitQuiz(answers){
   const ws=S.currentWs,qs=ws.questions||[];
   // Validate all questions are answered before allowing submission
   const answeredCount=answers.filter(a=>a!==undefined&&String(a).trim()!=='').length;
   if(answeredCount<qs.length){
-    showToast(`Please complete all the sums and then submit (${answeredCount}/${qs.length} done)`,true);
+    showIncompleteAlert(answeredCount, qs.length);
     return;
   }
   const correct=answers.filter((a,i)=>a!==undefined&&Number(String(a).trim())===Number(String(qs[i].correct_answer).trim())).length;
