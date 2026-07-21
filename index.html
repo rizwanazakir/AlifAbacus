@@ -563,11 +563,13 @@ function buildStudentScores(){
           <button class="btn-view-detail"
             data-subid="${s.id}" data-wsid="${s.worksheet_id}"
             data-sname="${S.profile?.name||'Me'}"
+            data-wstitle="${ws?.title||'Worksheet'}"
             data-score="${Math.round(s.score)}"
             data-correct="${s.correct_count}"
             data-total="${s.total_questions}"
-            data-date="${new Date(s.submitted_at).toLocaleDateString()}">
-            🔍 Review
+            data-date="${new Date(s.submitted_at).toLocaleDateString()}"
+            onclick="showStudentDetail(this.dataset.subid,this.dataset.wsid,this.dataset.sname,Number(this.dataset.score),Number(this.dataset.correct),Number(this.dataset.total),this.dataset.date,this.dataset.wstitle)">
+            <span style="pointer-events:none">🔍 Review Details</span>
           </button>
         </div>
       </div>
@@ -893,7 +895,7 @@ function buildTeacherResults(){
                 <td><span class="score-pill ${pill}">${Math.round(s.score)}%</span></td>
                 <td>${s.correct_count}/${s.total_questions}</td>
                 <td>${new Date(s.submitted_at).toLocaleDateString()}</td>
-                <td><button class="btn-detail" data-subid="${s.id}" data-wsid="${wsId}" data-sname="${s.student_name||'Student'}" data-score="${Math.round(s.score)}" data-correct="${s.correct_count}" data-total="${s.total_questions}" data-date="${new Date(s.submitted_at).toLocaleDateString()}">🔍 Details</button></td>
+                <td><button class="btn-detail" onclick="showStudentDetail('${s.id}','${wsId}','${s.student_name||'Student'}',${Math.round(s.score)},${s.correct_count},${s.total_questions},'${new Date(s.submitted_at).toLocaleDateString()}')"><span style="pointer-events:none">🔍 Details</span></button></td>
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -1652,7 +1654,7 @@ function downloadTeacherResultsPdf(worksheets, wsResults){
 }
 
 // ── Student Detail Modal ────────────────────────────────────────────────────
-async function showStudentDetail(subId, wsId, sName, score, correct, total, date){
+async function showStudentDetail(subId, wsId, sName, score, correct, total, date, wsTitle){
   // Remove any existing modal
   document.getElementById('detail-modal-overlay')?.remove();
 
@@ -1725,7 +1727,7 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
       <div class="detail-modal-header">
         <div>
           <div class="detail-modal-title">📊 ${sName}'s Detailed Report</div>
-          <div class="detail-modal-sub">Submitted on ${date} &nbsp;·&nbsp; ${correct}/${total} correct</div>
+          <div class="detail-modal-sub">${wsTitle?wsTitle+' &nbsp;·&nbsp; ':''} Submitted ${date} &nbsp;·&nbsp; ${correct}/${total} correct</div>
         </div>
         <button class="detail-modal-close" id="detail-close-btn" type="button">✕ Close</button>
       </div>
