@@ -1711,14 +1711,15 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
   const modal=document.createElement('div');
   modal.className='detail-modal-overlay';
   modal.id='detail-modal-overlay';
+  modal.style.zIndex='9999';
   modal.innerHTML=`
-    <div class="detail-modal" id="detail-modal-box">
+    <div class="detail-modal" id="detail-modal-box" onclick="event.stopPropagation()">
       <div class="detail-modal-header">
         <div>
           <div class="detail-modal-title">📊 ${sName}'s Detailed Report</div>
           <div class="detail-modal-sub">${wsTitle?wsTitle+' &nbsp;·&nbsp; ':''} Submitted ${date} &nbsp;·&nbsp; ${correct}/${total} correct</div>
         </div>
-        <button class="detail-modal-close" type="button" onclick="closeDetailModal()">✕ Close</button>
+        <button class="detail-modal-close" type="button" onclick="closeDetailModal(event)">✕ Close</button>
       </div>
       <div class="detail-modal-body">
         <div class="detail-score-bar">
@@ -1743,10 +1744,13 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
     </div>`;
 
   document.body.appendChild(modal);
+  // Prevent clicks inside modal from reaching bindApp's delegated listeners
+  modal.addEventListener('click', e => e.stopPropagation());
 }
 
 // Global function called directly by the close button onclick attribute
-function closeDetailModal(){
+function closeDetailModal(event){
+  if(event){ event.stopPropagation(); event.preventDefault(); }
   document.getElementById('detail-modal-overlay')?.remove();
 }
 
