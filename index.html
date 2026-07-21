@@ -975,18 +975,7 @@ function bindApp(){
   on('student-pdf-btn','click',()=>downloadStudentScoresPdf(S.submissions,S.worksheets,S.wsResults,S.profile));
   on('result-pdf-btn','click',()=>downloadStudentResultPdf(S.currentWs?.title,S.currentWs?.questions||[],S.answers,S.profile,S.wsResults[S.currentWs?.id]||[]));
   on('teacher-pdf-btn','click',()=>downloadTeacherResultsPdf(S.worksheets,S.wsResults));
-  // Delegate detail/review button clicks (teachers + students)
-  document.addEventListener('click',e=>{
-    const btn=e.target.closest('[data-subid]');
-    if(btn){
-      showStudentDetail(
-        btn.dataset.subid, btn.dataset.wsid,
-        btn.dataset.sname, Number(btn.dataset.score),
-        Number(btn.dataset.correct), Number(btn.dataset.total),
-        btn.dataset.date
-      );
-    }
-  });
+  // Detail buttons use inline onclick handlers
   on('add-q-btn','click',()=>set({newWs:{...S.newWs,questions:[...S.newWs.questions,{text:'',answer:''}]}}));
   on('submit-ws-btn','click',createWorksheet);
   on('clear-preview','click',()=>set({xlsxPreview:null}));
@@ -1723,13 +1712,13 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
   modal.className='detail-modal-overlay';
   modal.id='detail-modal-overlay';
   modal.innerHTML=`
-    <div class="detail-modal" id="detail-modal-box" onclick="event.stopPropagation()">
+    <div class="detail-modal" id="detail-modal-box">
       <div class="detail-modal-header">
         <div>
           <div class="detail-modal-title">📊 ${sName}'s Detailed Report</div>
           <div class="detail-modal-sub">${wsTitle?wsTitle+' &nbsp;·&nbsp; ':''} Submitted ${date} &nbsp;·&nbsp; ${correct}/${total} correct</div>
         </div>
-        <button class="detail-modal-close" id="detail-close-btn" type="button">✕ Close</button>
+        <button class="detail-modal-close" type="button" onclick="closeDetailModal()">✕ Close</button>
       </div>
       <div class="detail-modal-body">
         <div class="detail-score-bar">
@@ -1754,20 +1743,11 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
     </div>`;
 
   document.body.appendChild(modal);
+}
 
-  // Single close function — removes modal and all listeners
-  const closeModal = () => {
-    if(document.body.contains(modal)) modal.remove();
-  };
-
-  // Close button — direct assignment, no stacking
-  modal.querySelector('.detail-modal-close').onclick = closeModal;
-
-  // Escape key
-  const escHandler = e => { if(e.key==='Escape') closeModal(); };
-  document.addEventListener('keydown', escHandler);
-  modal._escHandler = escHandler; // store so we can remove it
-  modal.addEventListener('remove', () => document.removeEventListener('keydown', escHandler));
+// Global function called directly by the close button onclick attribute
+function closeDetailModal(){
+  document.getElementById('detail-modal-overlay')?.remove();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
