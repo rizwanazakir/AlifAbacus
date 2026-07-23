@@ -1348,110 +1348,178 @@ function getPdfHeader(doc){
 
 function downloadStudentResultPdf(wsTitle, qs, answers, profile, wsResults){
   const{jsPDF}=window.jspdf;
-  const doc=new jsPDF();
+  const doc=new jsPDF('l','mm','a4'); // landscape for more room
   const p=profile||{};
-  const correct=answers.filter((a,i)=>a!==undefined&&Number(String(a).trim())===Number(String(qs[i].correct_answer).trim())).length;
-  const score=Math.round((correct/qs.length)*100);
+  const isCorrectAnswer=(a,q)=>a!==undefined&&Number(String(a).trim())===Number(String(q.correct_answer).trim());
+  const correctCount=answers.filter((a,i)=>isCorrectAnswer(a,qs[i])).length;
+  const score=Math.round((correctCount/qs.length)*100);
   const date=new Date().toLocaleDateString();
+  const scoreRgb=score>=80?[16,185,129]:score>=50?[245,158,11]:[220,38,38];
 
-  getPdfHeader(doc);
-
-  // Title
-  doc.setFontSize(16);doc.setFont('helvetica','bold');
-  doc.setTextColor(26,26,46);
-  doc.text(wsTitle||'Worksheet Result',14,30);
-
-  // Student info box
-  doc.setFillColor(248,247,255);
-  doc.roundedRect(14,34,182,28,3,3,'F');
-  doc.setFontSize(10);doc.setFont('helvetica','bold');
-  doc.text('Student:',18,43);doc.setFont('helvetica','normal');doc.text(p.name||'—',50,43);
-  doc.setFont('helvetica','bold');
-  doc.text('Grade:',18,51);doc.setFont('helvetica','normal');doc.text(p.grade||'—',50,51);
-  doc.setFont('helvetica','bold');
-  doc.text('Class:',100,51);doc.setFont('helvetica','normal');doc.text(p.class||'—',118,51);
-  doc.setFont('helvetica','bold');
-  doc.text('Date:',100,43);doc.setFont('helvetica','normal');doc.text(date,118,43);
-
-  // Score box
-  const scoreColor=score>=80?[16,185,129]:score>=50?[245,158,11]:[239,68,68];
-  doc.setFillColor(...scoreColor);
-  doc.roundedRect(14,66,182,20,3,3,'F');
+  // ── Header bar ──────────────────────────────────────────────────────────────
+  doc.setFillColor(124,58,237);
+  doc.rect(0,0,297,16,'F');
   doc.setTextColor(255,255,255);
-  doc.setFontSize(13);doc.setFont('helvetica','bold');
-  doc.text(`Score: ${score}%   (${correct} Correct / ${qs.length-correct} Incorrect / ${qs.length} Total)`,105,79,{align:'center'});
+  doc.setFontSize(10);doc.setFont('helvetica','bold');
+  doc.text('Abacus-HomeWork · Detailed Result Report',14,11);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');
+  doc.text(`Generated: ${date}`,283,11,{align:'right'});
   doc.setTextColor(0,0,0);
 
-  // Question review table
-  doc.setFontSize(11);doc.setFont('helvetica','bold');
-  doc.text('Question Review',14,97);
+  // ── Worksheet title ──────────────────────────────────────────────────────────
+  doc.setFontSize(15);doc.setFont('helvetica','bold');
+  doc.setTextColor(45,32,71);
+  doc.text(wsTitle||'Worksheet Result',14,26);
+  doc.setTextColor(0,0,0);
 
-  // Build rows — format column sums as stacked numbers, show Correct/Incorrect
-  const rows=qs.map((q,i)=>{
+  // ── Student info ─────────────────────────────────────────────────────────────
+  doc.setFillColor(245,240,255);
+  doc.roundedRect(14,30,269,18,3,3,'F');
+  doc.setFontSize(9);doc.setFont('helvetica','bold');
+  doc.text('Student:',18,38);doc.setFont('helvetica','normal');doc.text(p.name||'—',44,38);
+  doc.setFont('helvetica','bold');
+  doc.text('Grade:',90,38);doc.setFont('helvetica','normal');doc.text(p.grade||'—',110,38);
+  doc.setFont('helvetica','bold');
+  doc.text('Class:',140,38);doc.setFont('helvetica','normal');doc.text(p.class||'—',158,38);
+  doc.setFont('helvetica','bold');
+  doc.text('Date:',190,38);doc.setFont('helvetica','normal');doc.text(date,206,38);
+
+  // ── Score summary bar ────────────────────────────────────────────────────────
+  // Score
+  doc.setFillColor(...scoreRgb);
+  doc.roundedRect(14,52,60,18,3,3,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(13);doc.setFont('helvetica','bold');
+  doc.text(`${score}%`,44,63,{align:'center'});
+  // Correct
+  doc.setFillColor(16,185,129);
+  doc.roundedRect(78,52,60,18,3,3,'F');
+  doc.setFontSize(10);
+  doc.text(`✓ ${correctCount} Correct`,108,63,{align:'center'});
+  // Incorrect
+  doc.setFillColor(220,38,38);
+  doc.roundedRect(142,52,60,18,3,3,'F');
+  doc.text(`✗ ${qs.length-correctCount} Incorrect`,172,63,{align:'center'});
+  // Total
+  doc.setFillColor(124,58,237);
+  doc.roundedRect(206,52,77,18,3,3,'F');
+  doc.text(`${qs.length} Total Questions`,244,63,{align:'center'});
+  doc.setTextColor(0,0,0);
+
+  // ── Section title ────────────────────────────────────────────────────────────
+  doc.setFontSize(11);doc.setFont('helvetica','bold');
+  doc.setTextColor(45,32,71);
+  doc.text('Sum by Sum Breakdown',14,82);
+  doc.setTextColor(0,0,0);
+
+  // ── Draw each question as a card matching Review Details layout ───────────────
+  // Layout: 10 cards per row (matching 10 sums per group), 6 rows = 60 sums
+  const COLS=10;
+  const cardW=26, cardH=36, startX=14, startY=86, gapX=2, gapY=4;
+
+  qs.forEach((q,i)=>{
+    const col=i%COLS;
+    const row=Math.floor(i/COLS);
+    const x=startX+col*(cardW+gapX);
+    const y=startY+row*(cardH+gapY);
     const given=answers[i];
-    const isOk=given!==undefined&&Number(String(given).trim())===Number(String(q.correct_answer).trim());
-    // Format question: if abacus/column, show numbers stacked with signs
-    let qText='';
+    const isOk=isCorrectAnswer(given,q);
+
+    // Card background
+    doc.setFillColor(isOk?240,253,244:254,242,242);
+    doc.setDrawColor(isOk?134,239,172:252,165,165);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(x,y,cardW,cardH,2,2,'FD');
+
+    // Sum number label
+    doc.setFontSize(6);doc.setFont('helvetica','normal');
+    doc.setTextColor(107,114,128);
+    doc.text(`#${i+1}`,x+cardW/2,y+3.5,{align:'center'});
+
+    // Numbers stacked (abacus format)
+    let lineY=y+7;
     if(q.numbers){
       const nums=typeof q.numbers==='string'?JSON.parse(q.numbers):q.numbers;
-      qText=nums.map((n,ni)=>{
-        if(ni===0) return String(n);
-        return(n<0?'- '+Math.abs(n):'+ '+n);
-      }).join('  ');
-      qText+=`  = ?  (Ans: ${q.correct_answer})`;
+      doc.setFontSize(7);doc.setFont('helvetica','bold');
+      nums.forEach((n,ni)=>{
+        const abs=Math.abs(n);
+        const isNeg=n<0;
+        if(isNeg){
+          doc.setTextColor(220,38,38);
+          doc.text(`- ${abs}`,x+cardW-3,lineY,{align:'right'});
+        } else {
+          doc.setTextColor(45,32,71);
+          doc.text(String(abs),x+cardW-3,lineY,{align:'right'});
+        }
+        lineY+=3.2;
+      });
     } else {
-      qText=q.question_text;
+      // Standard question — wrap text
+      doc.setFontSize(6);doc.setFont('helvetica','normal');
+      doc.setTextColor(45,32,71);
+      const lines=doc.splitTextToSize(q.question_text,cardW-4);
+      lines.slice(0,4).forEach(l=>{doc.text(l,x+2,lineY);lineY+=3;});
     }
-    return[
-      String(i+1),
-      qText,
-      String(given!==undefined&&given!==''?given:'—'),
-      String(q.correct_answer),
-      isOk?'Correct':'Incorrect'
-    ];
+
+    // Divider line
+    doc.setDrawColor(isOk?134,239,172:252,165,165);
+    doc.setLineWidth(0.5);
+    doc.line(x+2,lineY+0.5,x+cardW-2,lineY+0.5);
+    lineY+=3.5;
+
+    // Student's answer
+    doc.setFontSize(8);doc.setFont('helvetica','bold');
+    doc.setTextColor(isOk?5,150,105:220,38,38);
+    doc.text(given!==undefined&&given!==''?String(given):'—',x+cardW/2,lineY,{align:'center'});
+    lineY+=3.5;
+
+    // If wrong — show correct answer below
+    if(!isOk){
+      doc.setFontSize(6);doc.setFont('helvetica','normal');
+      doc.setTextColor(107,114,128);
+      doc.text(`Ans: ${q.correct_answer}`,x+cardW/2,lineY,{align:'center'});
+    }
+
+    // Result icon top-right
+    doc.setFontSize(7);doc.setFont('helvetica','bold');
+    doc.setTextColor(isOk?5,150,105:220,38,38);
+    doc.text(isOk?'✓':'✗',x+cardW-2,y+3.5,{align:'right'});
   });
 
-  doc.autoTable({
-    startY:100,
-    head:[['#','Question','Your Answer','Correct Answer','Result']],
-    body:rows,
-    theme:'striped',
-    headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
-    bodyStyles:{fontSize:9},
-    columnStyles:{0:{cellWidth:10},4:{cellWidth:22,halign:'center'}},
-    didParseCell:(data)=>{
-      if(data.column.index===4&&data.section==='body'){
-        data.cell.styles.textColor=data.cell.text[0]==='Correct'?[16,185,129]:[220,38,38];
-        data.cell.styles.fontStyle='bold';
-      }
-    },
-    margin:{left:14,right:14}
-  });
+  doc.setTextColor(0,0,0);
 
-  // Ranking
+  // ── Ranking on new page ───────────────────────────────────────────────────────
   if(wsResults&&wsResults.length){
+    doc.addPage();
+    doc.setFillColor(124,58,237);
+    doc.rect(0,0,297,16,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(10);doc.setFont('helvetica','bold');
+    doc.text('Class Ranking — '+wsTitle,14,11);
+    doc.setTextColor(0,0,0);
+
     const sorted=[...wsResults].sort((a,b)=>b.score-a.score);
-    const finalY=doc.lastAutoTable.finalY+8;
-    doc.setFontSize(11);doc.setFont('helvetica','bold');
-    doc.text('Class Ranking',14,finalY);
     const rankRows=sorted.map((s,i)=>[
-      `#${i+1}`,
+      i===0?'1st':i===1?'2nd':i===2?'3rd':`#${i+1}`,
       s.student_name||(s.student_id===p.id?p.name:'Student'),
       s.student_grade||'—',
       s.student_class||'—',
-      `${Math.round(s.score)}%`
+      `${Math.round(s.score)}%`,
+      s.student_id===p.id?'← You':''
     ]);
     doc.autoTable({
-      startY:finalY+4,
-      head:[['Rank','Student','Grade','Class','Score']],
+      startY:22,
+      head:[['Rank','Student','Grade','Class','Score','']],
       body:rankRows,
       theme:'striped',
-      headStyles:{fillColor:[67,56,202],textColor:255,fontStyle:'bold',fontSize:9},
+      headStyles:{fillColor:[124,58,237],textColor:255,fontStyle:'bold',fontSize:9},
       bodyStyles:{fontSize:9},
       didParseCell:(data)=>{
         if(data.column.index===4&&data.section==='body'){
           const sc=parseFloat(data.cell.text[0]);
           data.cell.styles.textColor=sc>=80?[16,185,129]:sc>=50?[245,158,11]:[220,38,38];
+          data.cell.styles.fontStyle='bold';
+        }
+        if(data.column.index===5&&data.section==='body'&&data.cell.text[0]==='← You'){
+          data.cell.styles.textColor=[124,58,237];
           data.cell.styles.fontStyle='bold';
         }
       },
