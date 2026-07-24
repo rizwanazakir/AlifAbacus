@@ -1669,30 +1669,49 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
   // Remove any existing modal
   document.getElementById('detail-modal-overlay')?.remove();
 
-  // Fetch questions and answers together via join (works for both teacher and student sessions)
-  const {data:questionsData}=await sb.from('questions').select('*').eq('worksheet_id',wsId).order('order_index');
+  // Fetch questions ordered by index
+  const {data:questionsData}=await sb
+    .from('questions').select('*').eq('worksheet_id',wsId).order('order_index');
   const questions=questionsData||[];
 
-  // Fetch submission answers joined through submissions table (RLS-safe for teachers)
-  const {data:answersData}=await sb
-    .from('submission_answers')
-    .select('question_id, student_answer, is_correct')
-    .eq('submission_id', subId);
-  const answers=answersData||[];
+  // Build a map of question id -> order_index for later
+  const qIdToIndex={};
+  questions.forEach((q,i)=>{ qIdToIndex[q.id]=i; });
 
-  // If RLS blocked it (teacher session), fetch via a joined path
-  let finalAnswers=answers;
-  if(!answers.length){
-    // Try fetching via submissions join
-    const {data:subData}=await sb
+  // Fetch answers — try all three methods in sequence until one returns data
+  let finalAnswers=[];
+
+  // Method 1: direct fetch by submission_id
+  const {data:d1}=await sb
+    .from('submission_answers')
+    .select('question_id,student_answer,is_correct')
+    .eq('submission_id',subId);
+  if(d1&&d1.length) finalAnswers=d1;
+
+  // Method 2: via nested join on submissions (for teacher RLS)
+  if(!finalAnswers.length){
+    const {data:d2}=await sb
       .from('submissions')
-      .select('submission_answers(question_id,student_answer,is_correct)')
+      .select('id,submission_answers(question_id,student_answer,is_correct)')
       .eq('id',subId)
       .maybeSingle();
-    finalAnswers=subData?.submission_answers||[];
+    if(d2?.submission_answers?.length) finalAnswers=d2.submission_answers;
   }
+
+  // Method 3: fetch all answers for this worksheet's questions (teacher fallback)
+  if(!finalAnswers.length && questions.length){
+    const qIds=questions.map(q=>q.id);
+    const {data:d3}=await sb
+      .from('submission_answers')
+      .select('question_id,student_answer,is_correct')
+      .eq('submission_id',subId)
+      .in('question_id',qIds);
+    if(d3&&d3.length) finalAnswers=d3;
+  }
+
+  // Build lookup map: question_id -> answer
   const answerMap={};
-  finalAnswers.forEach(a=>{answerMap[a.question_id]=a;});
+  finalAnswers.forEach(a=>{ answerMap[a.question_id]=a; });
 
   const scoreColor=score>=80?'#059669':score>=50?'#d97706':'#dc2626';
   const scoreBg=score>=80?'#f0fdf4':score>=50?'#fefce8':'#fef2f2';
@@ -1718,7 +1737,7 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
       return`<div class="detail-q-card ${isCorrect?'correct':'wrong'}" style="min-width:120px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <span class="detail-q-num">Sum ${i+1}</span>
-          <span style="font-size:18px">${isCorrect?'✅':'❌'}</span>
+          <span style="font-size:20px;font-weight:900">${isCorrect?'✅':'❌'}</span>
         </div>
         <div style="font-family:monospace;font-size:15px;font-weight:800;color:#2d2047;line-height:2;text-align:right;padding-right:4px">
           ${numsHtml}
@@ -1726,7 +1745,9 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
         <div style="border-top:2px solid ${isCorrect?'#86efac':'#fca5a5'};margin:6px 0 8px"></div>
         <div style="text-align:right">
           <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Student's answer</div>
-          <div style="font-size:20px;font-weight:900;color:${givenColor};background:${givenBg};border-radius:8px;padding:4px 10px;display:inline-block">${given}</div>
+          <div style="font-size:20px;font-weight:900;color:${givenColor};background:${givenBg};border-radius:8px;padding:4px 10px;display:inline-block">
+            ${given} ${isCorrect?'<span style="font-size:16px">✔</span>':''}
+          </div>
           ${!isCorrect?`<div style="font-size:11px;color:#6b7280;margin-top:6px">Correct answer</div>
           <div style="font-size:16px;font-weight:800;color:#059669;background:#f0fdf4;border-radius:8px;padding:3px 10px;display:inline-block">${q.correct_answer}</div>`:''}
         </div>
