@@ -983,21 +983,23 @@ function bindApp(){
   on('student-pdf-btn','click',()=>downloadStudentScoresPdf(S.submissions,S.worksheets,S.wsResults,S.profile));
   on('result-pdf-btn','click',()=>downloadStudentResultPdf(S.currentWs?.title,S.currentWs?.questions||[],S.answers,S.profile,S.wsResults[S.currentWs?.id]||[]));
   on('teacher-pdf-btn','click',()=>downloadTeacherResultsPdf(S.worksheets,S.wsResults));
-  // Detail buttons — delegated handler reads data attributes (avoids quote-escaping bugs)
-  document.addEventListener('click', e => {
-    const btn = e.target.closest('.btn-detail, .btn-view-detail');
-    if (!btn) return;
-    e.stopPropagation();
-    const sid   = btn.dataset.sid;
-    const wsid  = btn.dataset.wsid;
-    const sname = btn.dataset.sname || 'Student';
-    const score = Number(btn.dataset.score);
-    const correct = Number(btn.dataset.correct);
-    const total = Number(btn.dataset.total);
-    const date  = btn.dataset.date;
-    const wstitle = btn.dataset.wstitle || '';
-    showStudentDetail(sid, wsid, sname, score, correct, total, date, wstitle);
-  });
+  // Detail buttons — only register once on document (bindApp runs on every render)
+  if(!window._detailListenerAdded){
+    window._detailListenerAdded = true;
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.btn-detail, .btn-view-detail');
+      if (!btn) return;
+      const sid     = btn.dataset.sid;
+      const wsid    = btn.dataset.wsid;
+      const sname   = btn.dataset.sname || 'Student';
+      const score   = Number(btn.dataset.score);
+      const correct = Number(btn.dataset.correct);
+      const total   = Number(btn.dataset.total);
+      const date    = btn.dataset.date;
+      const wstitle = btn.dataset.wstitle || '';
+      showStudentDetail(sid, wsid, sname, score, correct, total, date, wstitle);
+    });
+  }
   on('add-q-btn','click',()=>set({newWs:{...S.newWs,questions:[...S.newWs.questions,{text:'',answer:''}]}}));
   on('submit-ws-btn','click',createWorksheet);
   on('clear-preview','click',()=>set({xlsxPreview:null}));
