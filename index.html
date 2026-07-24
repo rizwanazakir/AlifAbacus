@@ -1647,20 +1647,37 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
   // Remove any existing modal
   document.getElementById('detail-modal-overlay')?.remove();
 
-  // Fetch submission answers + questions
-  const[{data:answersData},{data:questionsData}]=await Promise.all([
-    sb.from('submission_answers').select('*').eq('submission_id',subId),
-    sb.from('questions').select('*').eq('worksheet_id',wsId).order('order_index')
-  ]);
-  const answers=answersData||[];
+  // Fetch questions and answers together via join (works for both teacher and student sessions)
+  const {data:questionsData}=await sb.from('questions').select('*').eq('worksheet_id',wsId).order('order_index');
   const questions=questionsData||[];
+
+  // Fetch submission answers joined through submissions table (RLS-safe for teachers)
+  const {data:answersData}=await sb
+    .from('submission_answers')
+    .select('question_id, student_answer, is_correct')
+    .eq('submission_id', subId);
+  const answers=answersData||[];
+
+  // If RLS blocked it (teacher session), fetch via a joined path
+  let finalAnswers=answers;
+  if(!answers.length){
+    // Try fetching via submissions join
+    const {data:subData}=await sb
+      .from('submissions')
+      .select('submission_answers(question_id,student_answer,is_correct)')
+      .eq('id',subId)
+      .maybeSingle();
+    finalAnswers=subData?.submission_answers||[];
+  }
+  const answerMap={};
+  finalAnswers.forEach(a=>{answerMap[a.question_id]=a;});
 
   const scoreColor=score>=80?'#059669':score>=50?'#d97706':'#dc2626';
   const scoreBg=score>=80?'#f0fdf4':score>=50?'#fefce8':'#fef2f2';
 
   // Build one card per question showing full working
   const qCards=questions.map((q,i)=>{
-    const ans=answers.find(a=>a.question_id===q.id);
+    const ans=answerMap[q.id]||finalAnswers.find(a=>a.question_id===q.id);
     const isCorrect=ans
       ? Number(String(ans.student_answer||'').trim())===Number(String(q.correct_answer).trim())
       : false;
