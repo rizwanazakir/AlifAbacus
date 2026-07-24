@@ -895,7 +895,7 @@ function buildTeacherResults(){
                 <td><span class="score-pill ${pill}">${Math.round(s.score)}%</span></td>
                 <td>${s.correct_count}/${s.total_questions}</td>
                 <td>${new Date(s.submitted_at).toLocaleDateString()}</td>
-                <td><button class="btn-detail" onclick="showStudentDetail('${s.id}','${wsId}','${s.student_name||'Student'}',${Math.round(s.score)},${s.correct_count},${s.total_questions},'${new Date(s.submitted_at).toLocaleDateString()}')"><span style="pointer-events:none">🔍 Details</span></button></td>
+                <td><button class="btn-detail" onclick="showStudentDetail('${s.id}','${wsId}','${s.student_name||'Student'}',${Math.round(s.score)},${s.correct_count},${s.total_questions},'${new Date(s.submitted_at).toLocaleDateString()}','${ws?.title||''}')"><span style="pointer-events:none">🔍 Details</span></button></td>
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -1030,7 +1030,7 @@ async function loadData(){
       await loadDrafts();
       const wsResults={};
       for(const w of S.worksheets){
-        const{data:all}=await sb.from('submissions').select('score,correct_count,total_questions,submitted_at,student_id').eq('worksheet_id',w.id);
+        const{data:all}=await sb.from('submissions').select('id,score,correct_count,total_questions,submitted_at,student_id').eq('worksheet_id',w.id);
         if(all?.length){
           const withInfo=await Promise.all(all.map(async s=>{
             if(s.student_id===S.profile.id) return{...s,student_name:S.profile.name,student_grade:S.profile.grade||'',student_class:S.profile.class||''};
