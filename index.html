@@ -561,16 +561,15 @@ function buildStudentScores(){
             <div style="font-size:12px;color:#7c6f8f">${s.correct_count}/${s.total_questions} correct</div>
           </div>
           <button class="btn-view-detail"
-            data-subid="${s.id}" data-wsid="${s.worksheet_id}"
-            data-sname="${S.profile?.name||'Me'}"
-            data-wstitle="${ws?.title||'Worksheet'}"
+            data-sid="${s.id}"
+            data-wsid="${s.worksheet_id}"
+            data-sname="${(S.profile?.name||'Me').replace(/"/g,'&quot;')}"
+            data-wstitle="${(ws?.title||'Worksheet').replace(/"/g,'&quot;')}"
             data-score="${Math.round(s.score)}"
             data-correct="${s.correct_count}"
             data-total="${s.total_questions}"
             data-date="${new Date(s.submitted_at).toLocaleDateString()}"
-            onclick="showStudentDetail(this.dataset.subid,this.dataset.wsid,this.dataset.sname,Number(this.dataset.score),Number(this.dataset.correct),Number(this.dataset.total),this.dataset.date,this.dataset.wstitle)">
-            <span style="pointer-events:none">🔍 Review Details</span>
-          </button>
+            >🔍 Review Details</button>
         </div>
       </div>
       ${buildRanking(s.worksheet_id)}
@@ -895,7 +894,16 @@ function buildTeacherResults(){
                 <td><span class="score-pill ${pill}">${Math.round(s.score)}%</span></td>
                 <td>${s.correct_count}/${s.total_questions}</td>
                 <td>${new Date(s.submitted_at).toLocaleDateString()}</td>
-                <td><button class="btn-detail" onclick="showStudentDetail('${s.id}','${wsId}','${s.student_name||'Student'}',${Math.round(s.score)},${s.correct_count},${s.total_questions},'${new Date(s.submitted_at).toLocaleDateString()}','${ws?.title||''}')"><span style="pointer-events:none">🔍 Details</span></button></td>
+                <td><button class="btn-detail"
+                  data-sid="${s.id}"
+                  data-wsid="${wsId}"
+                  data-score="${Math.round(s.score)}"
+                  data-correct="${s.correct_count}"
+                  data-total="${s.total_questions}"
+                  data-date="${new Date(s.submitted_at).toLocaleDateString()}"
+                  data-sname="${(s.student_name||'Student').replace(/"/g,'&quot;')}"
+                  data-wstitle="${(ws?.title||'').replace(/"/g,'&quot;')}"
+                  >🔍 Details</button></td>
               </tr>`;
             }).join('')}</tbody>
           </table>
@@ -975,7 +983,21 @@ function bindApp(){
   on('student-pdf-btn','click',()=>downloadStudentScoresPdf(S.submissions,S.worksheets,S.wsResults,S.profile));
   on('result-pdf-btn','click',()=>downloadStudentResultPdf(S.currentWs?.title,S.currentWs?.questions||[],S.answers,S.profile,S.wsResults[S.currentWs?.id]||[]));
   on('teacher-pdf-btn','click',()=>downloadTeacherResultsPdf(S.worksheets,S.wsResults));
-  // Detail buttons use inline onclick handlers
+  // Detail buttons — delegated handler reads data attributes (avoids quote-escaping bugs)
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.btn-detail, .btn-view-detail');
+    if (!btn) return;
+    e.stopPropagation();
+    const sid   = btn.dataset.sid;
+    const wsid  = btn.dataset.wsid;
+    const sname = btn.dataset.sname || 'Student';
+    const score = Number(btn.dataset.score);
+    const correct = Number(btn.dataset.correct);
+    const total = Number(btn.dataset.total);
+    const date  = btn.dataset.date;
+    const wstitle = btn.dataset.wstitle || '';
+    showStudentDetail(sid, wsid, sname, score, correct, total, date, wstitle);
+  });
   on('add-q-btn','click',()=>set({newWs:{...S.newWs,questions:[...S.newWs.questions,{text:'',answer:''}]}}));
   on('submit-ws-btn','click',createWorksheet);
   on('clear-preview','click',()=>set({xlsxPreview:null}));
