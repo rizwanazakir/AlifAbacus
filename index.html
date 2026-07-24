@@ -1167,7 +1167,7 @@ async function submitQuiz(answers){
       await sb.from('submission_answers').insert(answers.map((a,i)=>({
         submission_id:sub.id,question_id:qs[i].id,
         student_answer:String(a||''),
-        is_correct:String(a||'').trim()===String(qs[i].correct_answer).trim()
+        is_correct:Number(String(a||'').trim())===Number(String(qs[i].correct_answer).trim())
       })));
       S.submissions=[...S.submissions,sub];
     }
@@ -1661,8 +1661,10 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
   // Build one card per question showing full working
   const qCards=questions.map((q,i)=>{
     const ans=answers.find(a=>a.question_id===q.id);
-    const isCorrect=ans?.is_correct;
-    const given=ans?.student_answer??'—';
+    const isCorrect=ans
+      ? Number(String(ans.student_answer||'').trim())===Number(String(q.correct_answer).trim())
+      : false;
+    const given=(ans?.student_answer!==undefined&&ans?.student_answer!=='')?ans.student_answer:'—';
     const isAbacus=(q.question_type==='abacus')||q.numbers;
 
     // ── Column-format sum (Abacus) ──
