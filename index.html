@@ -1068,13 +1068,29 @@ async function loadData(){
     }
     if(S.profile?.role==='teacher'){
       const wsResults={};
+      // Store all answers keyed by submission id for instant modal lookup
+      S.teacherAnswers={};
       for(const w of S.worksheets){
-        const{data:all}=await sb.from('submissions').select('score,correct_count,total_questions,submitted_at,student_id').eq('worksheet_id',w.id);
+        // Fetch submissions WITH id
+        const{data:all}=await sb.from('submissions')
+          .select('id,score,correct_count,total_questions,submitted_at,student_id')
+          .eq('worksheet_id',w.id);
         const withNames=await Promise.all((all||[]).map(async s=>{
           const{data:st}=await sb.from('students').select('name,grade,class').eq('id',s.student_id).maybeSingle();
           return{...s,student_name:st?.name||'Student',student_grade:st?.grade||'',student_class:st?.class||''};
         }));
         wsResults[w.id]=withNames;
+        // Pre-load all submission_answers for this worksheet's submissions
+        const subIds=(all||[]).map(s=>s.id).filter(Boolean);
+        if(subIds.length){
+          const{data:ans}=await sb.from('submission_answers')
+            .select('submission_id,question_id,student_answer,is_correct')
+            .in('submission_id',subIds);
+          (ans||[]).forEach(a=>{
+            if(!S.teacherAnswers[a.submission_id]) S.teacherAnswers[a.submission_id]=[];
+            S.teacherAnswers[a.submission_id].push(a);
+          });
+        }
       }
       S.wsResults=wsResults;
     }
@@ -1680,35 +1696,21 @@ async function showStudentDetail(subId, wsId, sName, score, correct, total, date
   const qIdToIndex={};
   questions.forEach((q,i)=>{ qIdToIndex[q.id]=i; });
 
-  // Fetch answers — try all three methods in sequence until one returns data
+  // Use pre-loaded teacher answers if available (avoids RLS fetch issues)
   let finalAnswers=[];
 
-  // Method 1: direct fetch by submission_id
-  const {data:d1}=await sb
-    .from('submission_answers')
-    .select('question_id,student_answer,is_correct')
-    .eq('submission_id',subId);
-  if(d1&&d1.length) finalAnswers=d1;
-
-  // Method 2: via nested join on submissions (for teacher RLS)
-  if(!finalAnswers.length){
-    const {data:d2}=await sb
-      .from('submissions')
-      .select('id,submission_answers(question_id,student_answer,is_correct)')
-      .eq('id',subId)
-      .maybeSingle();
-    if(d2?.submission_answers?.length) finalAnswers=d2.submission_answers;
+  // Priority 1: pre-loaded by teacher loadData
+  if(S.teacherAnswers && S.teacherAnswers[subId]){
+    finalAnswers=S.teacherAnswers[subId];
   }
 
-  // Method 3: fetch all answers for this worksheet's questions (teacher fallback)
-  if(!finalAnswers.length && questions.length){
-    const qIds=questions.map(q=>q.id);
-    const {data:d3}=await sb
+  // Priority 2: direct fetch (student viewing own submission)
+  if(!finalAnswers.length){
+    const{data:d1}=await sb
       .from('submission_answers')
       .select('question_id,student_answer,is_correct')
-      .eq('submission_id',subId)
-      .in('question_id',qIds);
-    if(d3&&d3.length) finalAnswers=d3;
+      .eq('submission_id',subId);
+    if(d1&&d1.length) finalAnswers=d1;
   }
 
   // Build lookup map: question_id -> answer
